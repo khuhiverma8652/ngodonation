@@ -1,0 +1,49 @@
+{
+  "name": "ngo-donation-platform",
+  "version": "1.0.0",
+  "description": "NGO Donation Platform - Monorepo for backend and frontend",
+  "private": true,
+  "scripts": {
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && flutter pub get",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    
+    "dev:backend": "cd backend && npm run dev",
+    "start:backend": "cd backend && npm start",
+    
+    "dev:frontend": "cd frontend && flutter run",
+    "build:frontend:android": "cd frontend && flutter build apk --release",
+    "build:frontend:ios": "cd frontend && flutter build ios --release",
+    "build:frontend:web": "cd frontend && flutter build web --release",
+    
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && flutter test",
+    "test:all": "npm run test:backend && npm run test:frontend",
+    
+    "clean:backend": "cd backend && rm -rf node_modules package-lock.json",
+    "clean:frontend": "cd frontend && flutter clean",
+    "clean:all": "npm run clean:backend && npm run clean:frontend",
+    
+    "setup": "npm run install:all",
+    "dev": "npm run dev:backend"
+  },
+  "keywords": [
+    "ngo",
+    "donation",
+    "charity",
+    "fundraising",
+    "flutter",
+    "nodejs",
+    "mongodb"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ngo-donation-platform.git"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
