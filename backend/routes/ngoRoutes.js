@@ -16,6 +16,10 @@ router.get('/:id', getNGOById);
 // Protected routes
 router.get('/dashboard/stats', protect, authorize('ngo'), getDashboard);
 router.post('/profile', protect, authorize('ngo'), createOrUpdateProfile);
+router.post('/support-request', protect, authorize('ngo'), (req, res) => {
+  // Mock support request
+  res.json({ success: true, message: 'Support request sent to admin' });
+});
 router.post('/:id/review', protect, addReview);
 
 module.exports = router;

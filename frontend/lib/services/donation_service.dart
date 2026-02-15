@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ngo_donation_app/config/api_config.dart';
 
 class DonationService {
-  static const String baseUrl = "http://localhost:5000/api/donations";
-
-
+  static String get baseUrl => "${ApiConfig.baseUrl}/donations";
 
   /* CREATE DONATION */
   static Future<bool> createDonation({

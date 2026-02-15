@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:ngo_donation_app/services/api_service.dart';
 
 class VerifyOtpScreen extends StatefulWidget {
   final String email;
@@ -19,8 +19,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
 
-  final List<FocusNode> _focusNodes =
-      List.generate(6, (_) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isLoading = false;
   int _remainingSeconds = 60;
@@ -37,65 +36,94 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
     _remainingSeconds = 60;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remainingSeconds > 0) {
-        setState(() => _remainingSeconds--);
+        if (mounted) {
+          setState(() => _remainingSeconds--);
+        }
       } else {
         timer.cancel();
       }
     });
   }
 
- Future<void> _verifyOTP() async {
-  final otp = _otpControllers.map((e) => e.text).join();
+  Future<void> _verifyOTP() async {
+    final otp = _otpControllers.map((e) => e.text).join();
 
-  if (otp.length != 6) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Enter 6 digit OTP'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-    return;
+    if (otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter 6 digit OTP'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ApiService.verifyOTP(
+        email: widget.email,
+        otp: otp,
+      );
+
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OTP verified successfully! Please login.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login',
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Invalid OTP'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  setState(() => _isLoading = true);
-
-  await Future.delayed(const Duration(milliseconds: 300));
-
-  if (!mounted) return;
-
-  if (otp == '123456') {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('otp_verified', true);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('OTP verified successfully'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/login',
-      (route) => false,
-    );
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Invalid OTP'),
-        backgroundColor: Colors.red,
-      ),
-    );
+  Future<void> _resendOTP() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.resendOTP(email: widget.email);
+      if (response['success'] == true) {
+        _startTimer();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('OTP resent successfully'),
+              backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(response['message'] ?? 'Failed to resend'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
-
-  if (mounted) {
-    setState(() => _isLoading = false);
-  }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +135,6 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
           child: Column(
             children: [
               const SizedBox(height: 40),
-
               const Text(
                 'Verify OTP',
                 style: TextStyle(
@@ -116,9 +143,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                   color: Colors.white,
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 'OTP sent to\n${widget.email}',
                 textAlign: TextAlign.center,
@@ -127,9 +152,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                   fontSize: 15,
                 ),
               ),
-
               const SizedBox(height: 40),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (index) {
@@ -168,17 +191,12 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                   );
                 }),
               ),
-
               const SizedBox(height: 40),
-
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed:
-                      (_isLoading || _remainingSeconds == 0)
-                          ? null
-                          : _verifyOTP,
+                  onPressed: _isLoading ? null : _verifyOTP,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF6200EE),
@@ -197,14 +215,25 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                         ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              Text(
-                _remainingSeconds > 0
-                    ? 'OTP expires in $_remainingSeconds seconds'
-                    : 'OTP expired. Please request again.',
-                style: const TextStyle(color: Colors.white70),
+              GestureDetector(
+                onTap:
+                    _remainingSeconds == 0 && !_isLoading ? _resendOTP : null,
+                child: Text(
+                  _remainingSeconds > 0
+                      ? 'Resend OTP in $_remainingSeconds seconds'
+                      : 'Resend OTP',
+                  style: TextStyle(
+                    color:
+                        _remainingSeconds == 0 ? Colors.white : Colors.white70,
+                    fontWeight: _remainingSeconds == 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    decoration: _remainingSeconds == 0
+                        ? TextDecoration.underline
+                        : null,
+                  ),
+                ),
               ),
             ],
           ),

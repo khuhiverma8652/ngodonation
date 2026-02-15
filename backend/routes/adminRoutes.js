@@ -45,6 +45,24 @@ router.put(
   adminController.updateUserStatus
 );
 
+// Update user details
+// PUT /api/admin/users/:id
+router.put(
+  '/users/:id',
+  protect,
+  authorize('admin'),
+  adminController.updateUser
+);
+
+// Delete user
+// DELETE /api/admin/users/:id
+router.delete(
+  '/users/:id',
+  protect,
+  authorize('admin'),
+  adminController.deleteUser
+);
+
 // ================= NGO MANAGEMENT =================
 
 // Verify NGO

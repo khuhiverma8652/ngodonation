@@ -1,6 +1,8 @@
 const Campaign = require('../models/Campaign');
 const User = require('../models/User');
 const Donation = require('../models/DonationEnhanced');
+const notificationController = require('./notificationController');
+const mongoose = require('mongoose');
 
 // NGO - Quick Campaign Creator (Under 60 seconds)
 exports.createCampaign = async (req, res) => {
@@ -41,6 +43,44 @@ exports.createCampaign = async (req, res) => {
 
   } catch (error) {
     console.error('Create campaign error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// NGO - Add Campaign Update
+exports.addCampaignUpdate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    const campaign = await Campaign.findOne({ _id: id, ngoId: req.user.id });
+    if (!campaign) {
+      return res.status(404).json({ message: 'Campaign not found or not authorized' });
+    }
+
+    campaign.updates.push({ message });
+    await campaign.save();
+
+    // Notify all donors who contributed to this campaign
+    const donors = await Donation.find({ campaignId: id, paymentStatus: 'success' }).distinct('donorId');
+    for (const donorId of donors) {
+      await notificationController.createNotificationHelper(
+        donorId,
+        'update',
+        'Campaign Update!',
+        `The NGO posted an update for "${campaign.title}": ${message.substring(0, 50)}...`,
+        campaign._id
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Update posted successfully',
+      updates: campaign.updates
+    });
+
+  } catch (error) {
+    console.error('Add campaign update error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

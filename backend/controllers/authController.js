@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const sendOTP = require('../utils/sendOTP');
+const crypto = require('crypto');
 
 // ================= JWT =================
 const generateToken = (id) => {
@@ -32,7 +34,8 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const allowedRoles = ['donor', 'ngo', 'volunteer', 'admin'];
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const user = await User.create({
       name,
@@ -41,14 +44,27 @@ exports.register = async (req, res) => {
       phone,
       role,
       ngoName,
-      ngoAddress
+      ngoAddress,
+      otp, // Save OTP to database
+      isVerified: false
     });
 
+    // Send OTP via Email
+    try {
+      await sendOTP({ to: email, otp });
+    } catch (emailError) {
+      console.error("EMAIL SEND ERROR:", emailError);
+      // We still registered the user, but email failed.
+    }
 
     res.json({
       success: true,
-      message: 'Registered successfully. Use OTP 123456',
-      user
+      message: 'Registered successfully. Please check your email for OTP.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
     });
 
   } catch (error) {
@@ -121,7 +137,6 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 // ================= LOGIN =================
-// ================= LOGIN =================
 exports.login = async (req, res) => {
   try {
     const { email, password, role } = req.body;
@@ -139,6 +154,24 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: "User not found",
+      });
+    }
+
+    // 🔥 VERIFIED CHECK
+    if (!user.isVerified) {
+      // Generate new OTP and send if not verified
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.otp = otp;
+      await user.save();
+
+      try {
+        await sendOTP({ to: email, otp });
+      } catch (e) { }
+
+      return res.status(401).json({
+        success: false,
+        verified: false,
+        message: "Account not verified. New OTP sent to email.",
       });
     }
 
@@ -182,11 +215,118 @@ exports.login = async (req, res) => {
     });
   }
 };
+
+// ================= RESEND OTP =================
+exports.resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    await user.save();
+
+    await sendOTP({ to: email, otp });
+
+    res.json({ success: true, message: "OTP resent to email" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to resend OTP" });
+  }
+};
 // ================= PROFILE =================
 exports.getMe = async (req, res) => {
   res.json({
     success: true,
     message: 'Profile route working',
   });
+};
+
+// ================= FORGOT PASSWORD =================
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    await user.save();
+
+    // Send OTP via Email
+    try {
+      await sendOTP({ to: email, otp });
+    } catch (emailError) {
+      console.error("FORGOT PASSWORD EMAIL ERROR:", emailError);
+      return res.status(500).json({ success: false, message: "Failed to send OTP email" });
+    }
+
+    res.json({
+      success: true,
+      message: 'Password reset OTP sent to email',
+    });
+
+  } catch (error) {
+    console.error("FORGOT PASSWORD ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};
+
+// ================= RESET PASSWORD =================
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, OTP and new password required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.otp = null; // Clear OTP
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password reset successfully",
+    });
+
+  } catch (error) {
+    console.error("RESET PASSWORD ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset password",
+    });
+  }
 };
 

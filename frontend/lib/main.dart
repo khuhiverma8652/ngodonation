@@ -10,6 +10,8 @@ import 'screens/admin_dashboard.dart';
 import 'screens/donor/payment_screen.dart';
 import 'screens/donor/today_campaigns_screen.dart';
 import 'screens/donor/notifications_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/reset_password_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +66,17 @@ class MyApp extends StatelessWidget {
         },
         '/today-campaigns': (context) => const TodayCampaignsScreen(),
         '/notifications': (context) => const NotificationsScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/reset-password': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          String email = '';
+          if (args is String) {
+            email = args;
+          } else if (args is Map) {
+            email = args['email']?.toString() ?? '';
+          }
+          return ResetPasswordScreen(email: email);
+        },
       },
     );
   }

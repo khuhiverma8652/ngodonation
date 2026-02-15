@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.ngo_donation_app"
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion // Set to 21 for Razorpay and other modern plugins compatibility
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

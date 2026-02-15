@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const donationSchema = new mongoose.Schema({
+  // Donor IDs
   donorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -17,32 +18,54 @@ const donationSchema = new mongoose.Schema({
     required: true
   },
 
-  // Amount
+  // Donation Type
+  donationType: {
+    type: String,
+    enum: ['monetary', 'in-kind'],
+    default: 'monetary'
+  },
+
+  // Amount (Required for monetary)
   amount: {
     type: Number,
-    required: true,
-    min: 1
+    required: function () { return this.donationType === 'monetary'; },
+    min: 0 // Allow 0 for in-kind
   },
+
+  // Items (For in-kind)
+  items: [{
+    name: String,
+    quantity: Number,
+    value: Number,
+    description: String
+  }],
 
   // Receipt details
   receiptNumber: {
     type: String,
-    unique: true,
-    required: true
+    required: function () { return this.donationType === 'monetary'; }
   },
 
   // Payment details
   paymentMode: {
     type: String,
-    enum: ['razorpay', 'upi', 'card', 'netbanking', 'wallet'],
-    required: true
+    enum: ['razorpay', 'upi', 'card', 'netbanking', 'wallet', 'manual', 'in-kind'],
+    required: function () { return this.donationType === 'monetary'; }
   },
   paymentId: String,
   paymentStatus: {
     type: String,
-    enum: ['pending', 'success', 'failed', 'refunded'],
+    enum: ['pending', 'success', 'failed', 'refunded', 'completed', 'received'],
     default: 'pending'
   },
+
+  // NGO Verification details
+  isVerifiedByNGO: {
+    type: Boolean,
+    default: false
+  },
+  verifiedAt: Date,
+  receiverName: String,
 
   // Transaction details
   transactionId: String,
@@ -91,6 +114,10 @@ const donationSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isThanked: {
+    type: Boolean,
+    default: false
+  },
 
   // Metadata
   metadata: {
@@ -111,7 +138,7 @@ const donationSchema = new mongoose.Schema({
 
 // Generate unique receipt number
 donationSchema.pre('validate', async function (next) {
-  if (!this.receiptNumber) {
+  if (this.donationType === 'monetary' && !this.receiptNumber) {
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -119,12 +146,17 @@ donationSchema.pre('validate', async function (next) {
 
     // Count donations today
     const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-    const count = await this.constructor.countDocuments({
-      createdAt: { $gte: startOfDay }
-    });
+    try {
+      const count = await this.model('DonationEnhanced').countDocuments({
+        createdAt: { $gte: startOfDay },
+        donationType: 'monetary'
+      });
 
-    const sequence = String(count + 1).padStart(4, '0');
-    this.receiptNumber = `NGO${year}${month}${day}${sequence}`;
+      const sequence = String(count + 1).padStart(4, '0');
+      this.receiptNumber = `NGO${year}${month}${day}${sequence}`;
+    } catch (err) {
+      return next(err);
+    }
   }
   next();
 });
@@ -132,6 +164,6 @@ donationSchema.pre('validate', async function (next) {
 // Index for queries
 donationSchema.index({ donorId: 1, createdAt: -1 });
 donationSchema.index({ campaignId: 1 });
-donationSchema.index({ receiptNumber: 1 }, { unique: true });
+donationSchema.index({ receiptNumber: 1 }, { sparse: true });
 
 module.exports = mongoose.model('DonationEnhanced', donationSchema);

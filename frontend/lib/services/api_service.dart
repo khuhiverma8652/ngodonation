@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:ngo_donation_app/config/api_config.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:5000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   static String? _token;
 
@@ -99,7 +100,7 @@ class ApiService {
   }) async {
     try {
       final r = await http.post(
-        Uri.parse('$baseUrl/auth/send-otp'),
+        Uri.parse('$baseUrl/auth/resend-otp'),
         headers: _headers(),
         body: jsonEncode({'email': email}),
       );
@@ -279,6 +280,55 @@ class ApiService {
     return jsonDecode(r.body);
   }
 
+  static Future<Map<String, dynamic>> getAdminDonations() async {
+    final r = await http.get(
+      Uri.parse('$baseUrl/admin/donations'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> getAllUsers(
+      {String role = 'all', String? search}) async {
+    String url = '$baseUrl/admin/users?role=$role';
+    if (search != null && search.isNotEmpty) {
+      url += '&search=$search';
+    }
+    final r = await http.get(
+      Uri.parse(url),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> updateUser(
+      String userId, Map<String, dynamic> data) async {
+    final r = await http.put(
+      Uri.parse('$baseUrl/admin/users/$userId'),
+      headers: _headers(auth: true),
+      body: jsonEncode(data),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> updateUserStatus(
+      String userId, bool isActive) async {
+    final r = await http.put(
+      Uri.parse('$baseUrl/admin/users/$userId/status'),
+      headers: _headers(auth: true),
+      body: jsonEncode({'isActive': isActive}),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> deleteUser(String userId) async {
+    final r = await http.delete(
+      Uri.parse('$baseUrl/admin/users/$userId'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
 //=============create donation===========
   static Future<Map<String, dynamic>> createDonation(
     Map<String, dynamic> data,
@@ -333,6 +383,110 @@ class ApiService {
   static Future<Map<String, dynamic>> getImpact() async {
     final r = await http.get(
       Uri.parse('$baseUrl/donations/impact'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  // ================= NGO OPERATIONS =================
+
+  static Future<Map<String, dynamic>> getNGODonations() async {
+    final r = await http.get(
+      Uri.parse('$baseUrl/donations/ngo/my-donations'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> thankDonor(String donationId) async {
+    final r = await http.post(
+      Uri.parse('$baseUrl/donations/$donationId/thank'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> verifyDonation(String donationId,
+      {String? receiverName, Map<String, double>? itemValues}) async {
+    final r = await http.put(
+      Uri.parse('$baseUrl/donations/$donationId/verify'),
+      headers: _headers(auth: true),
+      body: jsonEncode({
+        if (receiverName != null) 'receiverName': receiverName,
+        if (itemValues != null) 'itemValues': itemValues,
+      }),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> sendCampaignUpdate(
+      String campaignId, String message) async {
+    final r = await http.post(
+      Uri.parse('$baseUrl/campaigns/$campaignId/update'),
+      headers: _headers(auth: true),
+      body: jsonEncode({'message': message}),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> requestSupport(String message) async {
+    final r = await http.post(
+      Uri.parse('$baseUrl/ngo/support-request'),
+      headers: _headers(auth: true),
+      body: jsonEncode({'message': message}),
+    );
+    return jsonDecode(r.body);
+  }
+
+  // ================= NOTIFICATIONS =================
+
+  static Future<Map<String, dynamic>> getNotifications() async {
+    final r = await http.get(
+      Uri.parse('$baseUrl/notifications'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> markNotificationRead(String id) async {
+    final r = await http.put(
+      Uri.parse('$baseUrl/notifications/$id/read'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> markAllNotificationsRead() async {
+    final r = await http.put(
+      Uri.parse('$baseUrl/notifications/read-all'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  static Future<Map<String, dynamic>> deleteNotification(String id) async {
+    final r = await http.delete(
+      Uri.parse('$baseUrl/notifications/$id'),
+      headers: _headers(auth: true),
+    );
+    return jsonDecode(r.body);
+  }
+
+  // ================= NGO LIST (Public) =================
+
+  static Future<Map<String, dynamic>> getNGOList() async {
+    final r = await http.get(
+      Uri.parse('$baseUrl/ngo'),
+      headers: _headers(),
+    );
+    return jsonDecode(r.body);
+  }
+
+  // ================= DONATION HISTORY =================
+
+  static Future<Map<String, dynamic>> getDonationHistory() async {
+    final r = await http.get(
+      Uri.parse('$baseUrl/donations/history'),
       headers: _headers(auth: true),
     );
     return jsonDecode(r.body);

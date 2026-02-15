@@ -12,10 +12,18 @@ const { authorize } = require('../middleware/role.middleware');
 
 // CREATE CAMPAIGN
 router.post(
-  '/',
-  protect,
-  authorize('ngo'),
-  campaignController.createCampaign
+   '/',
+   protect,
+   authorize('ngo'),
+   campaignController.createCampaign
+);
+
+// POST UPDATE
+router.post(
+   '/:id/update',
+   protect,
+   authorize('ngo'),
+   campaignController.addCampaignUpdate
 );
 
 /* ======================
@@ -45,10 +53,10 @@ router.post('/:id/support', protect, campaignController.supportCampaign);
 ====================== */
 
 router.put(
-  '/:id/status',
-  protect,
-  authorize('admin'),
-  campaignController.updateCampaignStatus
+   '/:id/status',
+   protect,
+   authorize('admin'),
+   campaignController.updateCampaignStatus
 );
 
 module.exports = router;

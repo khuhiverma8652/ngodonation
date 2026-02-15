@@ -306,12 +306,16 @@ exports.downloadReceipt = async (req, res) => {
 };
 exports.getDonorImpact = async (req, res) => {
   try {
-    const donorId = req.user.id;
+    const donorId = req.user._id || req.user.id;
+    console.log(`[getDonorImpact] Fetching impact for donor: ${donorId}`);
 
-    const donations = await Donation.find({
+    const query = {
       donorId: donorId,
-      paymentStatus: 'success'
-    })
+      paymentStatus: { $in: ['success', 'completed', 'received'] }
+    };
+    console.log(`[getDonorImpact] Query:`, JSON.stringify(query));
+
+    const donations = await Donation.find(query)
       .populate({
         path: 'campaignId',
         populate: {
@@ -321,10 +325,12 @@ exports.getDonorImpact = async (req, res) => {
       })
       .lean();
 
-    const totalDonated = donations.reduce((sum, d) => sum + d.amount, 0);
+    console.log(`[getDonorImpact] Found ${donations.length} donations`);
+
+    const totalDonated = donations.reduce((sum, d) => sum + (d.amount || 0), 0);
 
     const campaignsSupported = [
-      ...new Set(donations.map(d => d.campaignId?._id.toString()))
+      ...new Set(donations.map(d => d.campaignId?._id?.toString()).filter(Boolean))
     ].length;
 
     const totalItems = donations
@@ -336,6 +342,8 @@ exports.getDonorImpact = async (req, res) => {
     if (totalDonated > 1000) badge = "Supporter";
     if (totalDonated > 5000) badge = "Change Maker";
     if (totalDonated > 20000) badge = "Community Hero";
+
+    console.log(`[getDonorImpact] Calculated Impact:`, { totalDonated, campaignsSupported, totalItems, badge });
 
     res.json({
       success: true,
@@ -349,6 +357,7 @@ exports.getDonorImpact = async (req, res) => {
     });
 
   } catch (err) {
+    console.error("[getDonorImpact] Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

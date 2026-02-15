@@ -69,6 +69,11 @@ const campaignSchema = new mongoose.Schema({
     default: 0
   },
 
+  totalDonors: {
+    type: Number,
+    default: 0
+  },
+
   // 🔥 Link donations directly
   donations: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -161,7 +166,16 @@ const campaignSchema = new mongoose.Schema({
   whyMatters: {
     type: String,
     required: true
-  }
+  },
+
+  // ================= UPDATES =================
+  updates: [{
+    message: String,
+    date: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 
 }, {
   timestamps: true

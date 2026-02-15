@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ngo_donation_app/config/api_config.dart';
 
 class AuthService {
-  static const String baseUrl =
-      "http://localhost:5000/api/auth"; // Chrome + Web safe
+  static String get baseUrl => "${ApiConfig.baseUrl}/auth";
 
   /* ================= SIGNUP ================= */
   static Future<bool> signup({
@@ -81,5 +81,33 @@ class AuthService {
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+  }
+
+  /* ================= FORGOT PASSWORD ================= */
+  static Future<bool> forgotPassword(String email) async {
+    final res = await http.post(
+      Uri.parse("$baseUrl/forgot-password"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"email": email}),
+    );
+    return res.statusCode == 200;
+  }
+
+  /* ================= RESET PASSWORD ================= */
+  static Future<bool> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final res = await http.post(
+      Uri.parse("$baseUrl/reset-password"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "email": email,
+        "otp": otp,
+        "newPassword": newPassword,
+      }),
+    );
+    return res.statusCode == 200;
   }
 }

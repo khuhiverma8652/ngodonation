@@ -26,6 +26,8 @@ const donationRoutes = require('./routes/donationRoutes');
 const volunteerRoutes = require('./routes/volunteerRoutes');
 const ngoRoutes = require('./routes/ngoRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 // Health check
 app.get('/health', (req, res) => {
@@ -55,6 +57,8 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/volunteer', volunteerRoutes);
 app.use('/api/ngo', ngoRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/payments', paymentRoutes);
 
 /* ===========================
    ERROR HANDLING

@@ -5,7 +5,7 @@ import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
-  
+
   const HomeScreen({
     super.key,
     required this.user,
@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (widget.user.isAdmin) {
         await _loadAdminHome();
       }
-      
+
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadDonorHome() async {
     // Load donor-specific data
-    final response = await ApiService.getLocalImpact();
+    final response = await ApiService.getImpact();
     if (response['success']) {
       setState(() {
         _stats = response['data'];
@@ -125,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildAppBar() {
     Color primaryColor = _getRoleColor();
-    
+
     return SliverAppBar(
       expandedHeight: 200,
       pinned: true,
@@ -143,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
               end: Alignment.bottomRight,
               colors: [
                 primaryColor,
-                primaryColor.withOpacity(0.7),
+                primaryColor.withValues(alpha: 0.7),
               ],
             ),
           ),

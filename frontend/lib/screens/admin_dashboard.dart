@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'admin/campaign_approval_screen.dart';
+import 'admin/manage_users_screen.dart';
+import 'admin/admin_donations_screen.dart';
 import 'package:ngo_donation_app/services/api_service.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -49,11 +51,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
         }
       },
       child: Scaffold(
-        body:
-            _selectedIndex == 0 ? _buildHome() : const CampaignApprovalScreen(),
+        body: _buildBody(),
         bottomNavigationBar: _buildBottomNav(),
       ),
     );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildHome();
+      case 1:
+        return const CampaignApprovalScreen();
+      case 2:
+        return const ManageUsersScreen();
+      case 3:
+        return const AdminDonationsScreen();
+      default:
+        return _buildHome();
+    }
   }
 
   Widget _buildHome() {
@@ -63,6 +79,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
         SliverAppBar(
           expandedHeight: 200,
           pinned: true,
+          actions: [
+            IconButton(
+              onPressed: () {
+                ApiService.clearToken();
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/login', (route) => false);
+              },
+              icon: const Icon(Icons.exit_to_app, color: Colors.white),
+              tooltip: 'Sign Out',
+            ),
+          ],
           flexibleSpace: FlexibleSpaceBar(
             title: const Text(
               'Admin Dashboard',
@@ -220,8 +247,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Icons.people_outline,
                   const Color(0xFF2196F3),
                   () {
-                    // Navigate to user management
+                    setState(() => _selectedIndex = 2);
                   },
+                  badge: _stats?['totalUsers'],
                 ),
                 const SizedBox(height: 12),
                 _buildActionButton(
@@ -229,8 +257,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Icons.assessment,
                   const Color(0xFF4CAF50),
                   () {
-                    // Navigate to reports
+                    setState(() => _selectedIndex = 3);
                   },
+                  badge: _stats?['totalDonations'],
                 ),
                 const SizedBox(height: 12),
                 _buildActionButton(
@@ -479,12 +508,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(Icons.dashboard, 'Dashboard', 0),
               _buildNavItem(Icons.pending_actions, 'Approvals', 1),
+              _buildNavItem(Icons.people, 'Users', 2),
+              _buildNavItem(Icons.assessment, 'Reports', 3),
             ],
           ),
         ),
@@ -500,7 +531,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: GestureDetector(
         onTap: () => setState(() => _selectedIndex = index),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
@@ -511,13 +542,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Icon(
                 icon,
                 color: isSelected ? color : Colors.grey.shade600,
-                size: 28,
+                size: 24,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: isSelected ? color : Colors.grey.shade600,
                 ),

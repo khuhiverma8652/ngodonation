@@ -13,11 +13,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   String _selectedRole = 'donor';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  
+
   final List<Map<String, dynamic>> _roles = [
     {
       'name': 'donor',
@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // ✅ OTP VERIFIED CHECK (ONLY LOGIC ADDED)
-  
+
     setState(() => _isLoading = true);
 
     try {
@@ -97,6 +97,18 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         Navigator.pushNamedAndRemoveUntil(context, route, (route) => false);
+      } else if (response['verified'] == false) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Account not verified'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.pushNamed(
+          context,
+          '/verify-otp',
+          arguments: {'email': _emailController.text.trim()},
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -162,9 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: _currentRole['color'],
                     ),
                   ).animate().fadeIn(duration: 600.ms).scale(delay: 100.ms),
-                  
+
                   const SizedBox(height: 30),
-                  
+
                   const Text(
                     'Welcome Back!',
                     style: TextStyle(
@@ -174,9 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3, end: 0),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   const Text(
                     'Login to continue making a difference',
                     style: TextStyle(
@@ -185,9 +197,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3, end: 0),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Role Selection
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -260,9 +272,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3, end: 0),
-                  
+
                   const SizedBox(height: 30),
-                  
+
                   // Login Form
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -313,9 +325,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                           ),
-                          
+
                           const SizedBox(height: 20),
-                          
+
                           // Password
                           TextFormField(
                             controller: _passwordController,
@@ -361,18 +373,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                           ),
-                          
+
                           const SizedBox(height: 12),
-                          
+
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Forgot password feature coming soon!'),
-                                  ),
-                                );
+                                Navigator.pushNamed(
+                                    context, '/forgot-password');
                               },
                               child: Text(
                                 'Forgot Password?',
@@ -383,9 +392,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          
+
                           const SizedBox(height: 20),
-                          
+
                           SizedBox(
                             width: double.infinity,
                             height: 54,
@@ -421,9 +430,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.3, end: 0),
-                  
+
                   const SizedBox(height: 30),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -451,9 +460,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ).animate().fadeIn(delay: 600.ms),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   Container(
                     width: double.infinity,
                     height: 54,
@@ -493,7 +502,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ).animate().fadeIn(delay: 700.ms).slideY(begin: 0.3, end: 0),
-                  
+
                   const SizedBox(height: 20),
                 ],
               ),

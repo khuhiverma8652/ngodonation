@@ -4,6 +4,7 @@ const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const Campaign = require("../models/Campaign");
 const Donation = require("../models/DonationEnhanced");
+const notificationController = require("./notificationController");
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -56,7 +57,7 @@ exports.verifyPayment = async (req, res) => {
       .update(body)
       .digest("hex");
 
-    if (razorpay_signature !== 'dummy_signature' && expectedSignature !== razorpay_signature) {
+    if (expectedSignature !== razorpay_signature) {
       return res.status(400).json({ success: false, message: "Invalid signature" });
     }
 
@@ -66,24 +67,64 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Campaign not found" });
     }
 
+    // Get donor details for receipt
+    const User = require("../models/User");
+    const donor = await User.findById(req.user.id);
+
     // Save donation using YOUR schema
-    await Donation.create({
-      donorId: req.user.id, // from auth middleware
+    const donation = await Donation.create({
+      donorId: req.user.id,
       campaignId: campaignId,
       ngoId: campaign.ngoId,
       amount: amount,
-      paymentMode: "upi", // or dynamically from frontend later
+      paymentMode: "upi",
       transactionId: razorpay_payment_id,
       paymentStatus: "success",
+      donorName: donor?.name || "Donor",
+      donorEmail: donor?.email || "",
+      donorPhone: donor?.phone || "",
+      donorAddress: donor?.address || "",
+      purpose: `Donation for ${campaign.title}`,
+      isVerifiedByNGO: true, // Monetary verified by payment
       receiptGenerated: false
     });
 
-    // Update campaign amount
+    // Generate Receipt
+    const { generateReceipt } = require("./donationEnhancedController");
+    const populatedCampaign = await Campaign.findById(campaignId).populate('ngoId');
+    const receiptData = await generateReceipt(donation, populatedCampaign, donor);
+
+    donation.receiptGenerated = true;
+    donation.receiptUrl = receiptData.url;
+    donation.receiptGeneratedAt = new Date();
+    await donation.save();
+
+    // Send Email
+    const mailService = require("../services/mail.service");
+    await mailService.sendDonationReceipt(donation, receiptData.url);
+
+    // Update campaign amount & donors
     await Campaign.findByIdAndUpdate(campaignId, {
-      $inc: { currentAmount: amount }
+      $inc: {
+        currentAmount: amount,
+        totalDonors: 1
+      }
     });
 
-    res.json({ success: true });
+    // Notify Donor
+    await notificationController.createNotificationHelper(
+      req.user.id,
+      'donation',
+      'Donation Successful!',
+      `Thank you for your donation of ₹${amount} to "${campaign.title}". You're making a difference!`,
+      campaignId
+    );
+
+    res.json({
+      success: true,
+      message: "Payment verified and receipt emailed!",
+      receiptUrl: receiptData.url
+    });
 
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -11,10 +11,9 @@ exports.getDashboard = async (req, res) => {
     const ngo = await NGO.findOne({ user: req.user._id });
 
     if (!ngo) {
-      return res.status(404).json({
-        success: false,
-        message: 'NGO profile not found'
-      });
+      // It's possible the user is an NGO role but hasn't completed the NGO profile yet.
+      // However, we can still show them their campaigns and donations if they have any linked to their user ID.
+      // Or we can return partial data. For now, we'll proceed but bear in mind the profile might be missing.
     }
 
     // 📊 Real-time stats calculation
@@ -22,9 +21,14 @@ exports.getDashboard = async (req, res) => {
     const totalCampaigns = campaigns.length;
     const activeCampaigns = campaigns.filter(c => c.status === 'approved').length;
 
-    // Aggregate donations for this NGO
+    // Aggregate donations for this NGO (only successful ones for total raised)
     const donationStats = await Donation.aggregate([
-      { $match: { ngoId: req.user._id, paymentStatus: 'success' } },
+      {
+        $match: {
+          ngoId: req.user._id,
+          paymentStatus: { $in: ['success', 'completed', 'received'] }
+        }
+      },
       {
         $group: {
           _id: null,
@@ -37,6 +41,15 @@ exports.getDashboard = async (req, res) => {
     const totalRaised = donationStats[0]?.totalRaised || 0;
     const totalDonors = donationStats[0]?.donors?.length || 0;
 
+    // 🟢 Fetch ALL Recent Donations (including pending items for verification)
+    const recentDonations = await Donation.find({
+      ngoId: req.user._id
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('donorId', 'name email phone profileImage')
+      .populate('campaignId', 'title category');
+
     res.json({
       success: true,
       stats: {
@@ -45,9 +58,11 @@ exports.getDashboard = async (req, res) => {
         totalRaised,
         totalDonors
       },
-      campaigns
+      campaigns,
+      donations: recentDonations
     });
   } catch (error) {
+    console.error("Dashboard Error:", error);
     res.status(500).json({
       success: false,
       message: error.message

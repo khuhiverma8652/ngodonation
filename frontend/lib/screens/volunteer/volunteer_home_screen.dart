@@ -11,7 +11,7 @@ class VolunteerHomeScreen extends StatefulWidget {
 }
 
 class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> {
-String campaignId = "";
+  String campaignId = "";
   bool _isLoading = true;
   List<dynamic> _opportunities = [];
   String? _errorMessage;
@@ -25,7 +25,7 @@ String campaignId = "";
   Future<void> _loadOpportunities() async {
     try {
       Position position = await Geolocator.getCurrentPosition();
-      
+
       final response = await ApiService.joinVolunteer(campaignId);
       if (response['success']) {
         setState(() {
@@ -55,6 +55,17 @@ String campaignId = "";
           SliverAppBar(
             expandedHeight: 220,
             pinned: true,
+            actions: [
+              IconButton(
+                onPressed: () {
+                  ApiService.clearToken();
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/login', (route) => false);
+                },
+                icon: const Icon(Icons.exit_to_app, color: Colors.white),
+                tooltip: 'Sign Out',
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: const Text(
                 'What can I do today?',
@@ -197,7 +208,8 @@ String campaignId = "";
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 80, color: Colors.grey.shade400),
+                    Icon(Icons.error_outline,
+                        size: 80, color: Colors.grey.shade400),
                     const SizedBox(height: 16),
                     Text(_errorMessage!, textAlign: TextAlign.center),
                     const SizedBox(height: 24),
@@ -228,7 +240,8 @@ String campaignId = "";
                     const SizedBox(height: 16),
                     const Text(
                       'No opportunities today',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -287,7 +300,7 @@ String campaignId = "";
 
   Widget _buildOpportunityCard(Map<String, dynamic> opportunity, int index) {
     final categoryColor = _getCategoryColor(opportunity['category'] ?? 'Food');
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -386,7 +399,7 @@ String campaignId = "";
                   ),
                 ],
                 const SizedBox(height: 20),
-                
+
                 // Action button
                 SizedBox(
                   width: double.infinity,
@@ -394,10 +407,9 @@ String campaignId = "";
                     onPressed: () async {
                       // Join volunteer opportunity
                       try {
-                        final response = await ApiService.joinVolunteer(campaignId);
+                        final response =
+                            await ApiService.joinVolunteer(campaignId);
 
-
-                        
                         if (response['success'] && mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -441,12 +453,14 @@ String campaignId = "";
           ),
         ],
       ),
-    ).animate(delay: (100 * index + 500).ms)
-      .fadeIn(duration: 500.ms)
-      .slideY(begin: 0.2, end: 0);
+    )
+        .animate(delay: (100 * index + 500).ms)
+        .fadeIn(duration: 500.ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value, Color color) {
+  Widget _buildDetailRow(
+      IconData icon, String label, String value, Color color) {
     return Row(
       children: [
         Container(

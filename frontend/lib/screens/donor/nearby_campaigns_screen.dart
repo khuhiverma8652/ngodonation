@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:ngo_donation_app/services/api_service.dart';
+import '../campaign_detail_screen.dart';
 
 class NearbyCampaignsScreen extends StatefulWidget {
   const NearbyCampaignsScreen({super.key});
@@ -47,7 +50,9 @@ class _NearbyCampaignsScreenState extends State<NearbyCampaignsScreen> {
       }
 
       Position position = await Geolocator.getCurrentPosition();
-      setState(() => _currentPosition = position);
+      if (mounted) {
+        setState(() => _currentPosition = position);
+      }
       _loadCampaigns(position.latitude, position.longitude);
     } catch (e) {
       _loadCampaigns(19.0760, 72.8777);
@@ -55,36 +60,59 @@ class _NearbyCampaignsScreenState extends State<NearbyCampaignsScreen> {
   }
 
   Future<void> _loadCampaigns(double lat, double lon) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
-    final response = await ApiService.getNearbyCampaigns(
-      latitude: lat,
-      longitude: lon,
-      maxDistance: 50000,
-      category: _selectedCategory,
-    );
+    try {
+      final response = await ApiService.getNearbyCampaigns(
+        latitude: lat,
+        longitude: lon,
+        maxDistance: 50000,
+        category: _selectedCategory == 'All' ? null : _selectedCategory,
+      );
 
-    if (mounted) {
-      setState(() {
-        print("FULL RESPONSE:");
-        print(response);
-
-        _campaigns = response['campaigns'] ?? []; // ✅ THIS IS CORRECT
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _campaigns = response['campaigns'] ?? [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Nearby Campaigns'),
-        backgroundColor: const Color(0xFF6200EE),
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Nearby Campaigns',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: () => _getCurrentLocation(),
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
+            onPressed: () {
+              ApiService.clearToken();
+              Navigator.pushNamedAndRemoveUntil(
+                  context, '/login', (route) => false);
+            },
+            icon: const Icon(Icons.exit_to_app, color: Colors.red),
+            tooltip: 'Sign Out',
+          ),
+        ],
       ),
       body: Column(
         children: [
+          // Category Selector
           Container(
             height: 60,
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -111,53 +139,32 @@ class _NearbyCampaignsScreenState extends State<NearbyCampaignsScreen> {
                       });
                     },
                     selectedColor: const Color(0xFF6200EE),
+                    backgroundColor: Colors.grey.shade100,
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : Colors.black87,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 );
               },
             ),
           ),
+
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _campaigns.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.search_off,
-                                size: 64, color: Colors.grey.shade400),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No campaigns found nearby',
-                              style: TextStyle(
-                                  color: Colors.grey.shade600, fontSize: 16),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () async {
-                          if (_currentPosition != null) {
-                            await _loadCampaigns(_currentPosition!.latitude,
-                                _currentPosition!.longitude);
-                          }
+                    ? const Center(child: Text("No campaigns found nearby"))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _campaigns.length,
+                        itemBuilder: (context, index) {
+                          return _buildDetailedCampaignCard(
+                              _campaigns[index], index);
                         },
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _campaigns.length,
-                          itemBuilder: (context, index) {
-                            final campaign = _campaigns[index];
-                            return _CampaignCard(
-                              campaign: campaign,
-                              onDonate: () =>
-                                  _handleDonation(context, campaign),
-                            );
-                          },
-                        ),
                       ),
           ),
         ],
@@ -165,128 +172,239 @@ class _NearbyCampaignsScreenState extends State<NearbyCampaignsScreen> {
     );
   }
 
-  void _handleDonation(BuildContext context, Map<String, dynamic> campaign) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DonationOptions(
-        campaign: campaign,
-        onComplete: () {
-          if (_currentPosition != null) {
-            _loadCampaigns(
-                _currentPosition!.latitude, _currentPosition!.longitude);
-          }
-        },
-      ),
-    );
-  }
-}
-
-class _CampaignCard extends StatelessWidget {
-  final Map<String, dynamic> campaign;
-  final VoidCallback onDonate;
-
-  const _CampaignCard({required this.campaign, required this.onDonate});
-
-  @override
-  Widget build(BuildContext context) {
-    final title = campaign['title'] ?? 'Untitled Campaign';
+  Widget _buildDetailedCampaignCard(Map<String, dynamic> campaign, int index) {
+    final title = campaign['title'] ?? 'Help Needed';
     final category = campaign['category'] ?? 'General';
-    final location = campaign['location'] as Map<String, dynamic>?;
-    final area = location?['area'] ?? campaign['area'] ?? 'Unknown Location';
-    final ngoName = campaign['ngoId']?['name'] ?? 'Unknown NGO';
+    final ngoName = campaign['ngoId']?['name'] ?? 'NGO Name';
+    final location =
+        campaign['location']?['area'] ?? campaign['area'] ?? 'Unknown Location';
+    final city = campaign['location']?['city'] ?? '';
+    final distance = (campaign['distance'] ?? 0.0).toStringAsFixed(1);
     final target = (campaign['targetAmount'] ?? 0).toDouble();
     final raised = (campaign['currentAmount'] ?? 0).toDouble();
-    final distance = campaign['distance']?.toStringAsFixed(1) ?? 'N/A';
-    final progress = target > 0 ? (raised / target) : 0.0;
+    final progress = target > 0 ? (raised / target).clamp(0.0, 1.0) : 0.0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Opening: $title')),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final categoryColor = _getCategoryColor(category);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Tag and Distance
+          Stack(
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getCategoryColor(category).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      category,
-                      style: TextStyle(
-                        color: _getCategoryColor(category),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
+              Container(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [categoryColor.withOpacity(0.8), categoryColor],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    _getCategoryIcon(category),
+                    size: 60,
+                    color: Colors.white.withOpacity(0.4),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    category.toUpperCase(),
+                    style: TextStyle(
+                      color: categoryColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const Spacer(),
-                  Icon(Icons.location_on,
-                      size: 16, color: Colors.grey.shade600),
-                  const SizedBox(width: 4),
-                  Text('$distance km',
-                      style:
-                          TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text("$ngoName • $area",
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                backgroundColor: Colors.grey.shade200,
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(Color(0xFF6200EE)),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('₹${raised.toStringAsFixed(0)} raised',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text('of ₹${target.toStringAsFixed(0)}',
-                      style: TextStyle(color: Colors.grey.shade600)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onDonate,
-                  icon: const Icon(Icons.volunteer_activism, size: 18),
-                  label: const Text('Donate Now'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6200EE),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on,
+                          color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        "$distance km",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
-        ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.business, size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      ngoName,
+                      style: const TextStyle(
+                          color: Colors.grey, fontWeight: FontWeight.w500),
+                    ),
+                    const Text(" • ", style: TextStyle(color: Colors.grey)),
+                    const Icon(Icons.room, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        "$location${city.isNotEmpty ? ', $city' : ''}",
+                        style: const TextStyle(color: Colors.grey),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "₹${NumberFormat('#,##,###').format(raised)} raised",
+                          style: const TextStyle(
+                            color: Color(0xFF6200EE),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          "${(progress * 100).toStringAsFixed(1)}% complete",
+                          style: TextStyle(
+                              color: Colors.grey.shade600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      "Target: ₹${NumberFormat('#,##,###').format(target)}",
+                      style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 10,
+                    backgroundColor: Colors.grey.shade100,
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Color(0xFF6200EE)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CampaignDetailScreen(campaign: campaign),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6200EE),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      "Support Now",
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-    );
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: (index * 100).ms)
+        .slideY(begin: 0.1);
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'food':
+        return Icons.restaurant;
+      case 'medical':
+        return Icons.medical_services;
+      case 'education':
+        return Icons.school;
+      case 'emergency':
+        return Icons.emergency_share;
+      default:
+        return Icons.volunteer_activism;
+    }
   }
 
   Color _getCategoryColor(String category) {
@@ -302,233 +420,5 @@ class _CampaignCard extends StatelessWidget {
       default:
         return Colors.purple;
     }
-  }
-}
-
-class _DonationOptions extends StatelessWidget {
-  final Map<String, dynamic> campaign;
-  final VoidCallback onComplete;
-
-  const _DonationOptions({required this.campaign, required this.onComplete});
-
-  @override
-  Widget build(BuildContext context) {
-    final category = campaign['category'] ?? 'Item';
-    final primaryColor = const Color(0xFF6200EE);
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            "How would you like to donate?",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Support '${campaign['title']}'",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-          ),
-          const SizedBox(height: 32),
-
-          /// ITEM DONATION
-          _buildOptionButton(
-            context,
-            icon: Icons.inventory_2_outlined,
-            label: "Donate $category",
-            subtitle: "Send physical items or supplies",
-            color: Colors.orange.shade700,
-            onTap: () async {
-              Navigator.pop(context);
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ItemDonationScreen(
-                    campaign: campaign,
-                    category: category,
-                  ),
-                ),
-              );
-              onComplete();
-            },
-          ),
-
-          const SizedBox(height: 16),
-
-          /// MONEY DONATION
-          _buildOptionButton(
-            context,
-            icon: Icons.payments_outlined,
-            label: "Donate Money",
-            subtitle: "Help with monetary contribution",
-            color: primaryColor,
-            onTap: () async {
-              Navigator.pop(context);
-              await Navigator.pushNamed(
-                context,
-                '/payment',
-                arguments: campaign,
-              );
-              onComplete();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOptionButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: color.withOpacity(0.15)),
-          borderRadius: BorderRadius.circular(16),
-          color: color.withOpacity(0.04),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios,
-                size: 14, color: color.withOpacity(0.5)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ItemDonationScreen extends StatefulWidget {
-  final Map<String, dynamic> campaign;
-  final String category;
-
-  const ItemDonationScreen({
-    super.key,
-    required this.campaign,
-    required this.category,
-  });
-
-  @override
-  State<ItemDonationScreen> createState() => _ItemDonationScreenState();
-}
-
-class _ItemDonationScreenState extends State<ItemDonationScreen> {
-  final TextEditingController _itemController = TextEditingController();
-  final TextEditingController _quantityController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Donate ${widget.category}")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _itemController,
-              decoration: InputDecoration(
-                labelText: "${widget.category} Type",
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _quantityController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Quantity",
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                final response = await ApiService.createDonation({
-                  "campaignId": widget.campaign['_id'],
-                  "donationType": "in-kind",
-                  "items": [
-                    {
-                      "name": _itemController.text,
-                      "quantity": int.parse(_quantityController.text),
-                      "value": 0
-                    }
-                  ]
-                });
-
-                print("ITEM DONATION RESPONSE: $response");
-
-                if (response['success']) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Item Donation Submitted!")),
-                  );
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text("Submit Donation"),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

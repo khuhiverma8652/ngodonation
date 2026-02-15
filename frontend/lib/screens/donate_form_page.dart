@@ -29,6 +29,7 @@ class _DonateFormState extends State<DonateForm> {
     setState(() => loading = false);
 
     if (ok) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Donation submitted")),
       );
@@ -53,7 +54,6 @@ class _DonateFormState extends State<DonateForm> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-
           DropdownButtonFormField(
             initialValue: itemType,
             items: const [
@@ -66,24 +66,19 @@ class _DonateFormState extends State<DonateForm> {
             onChanged: (v) => setState(() => itemType = v.toString()),
             decoration: const InputDecoration(labelText: "Item Type"),
           ),
-
           TextField(
             controller: quantity,
             decoration: const InputDecoration(labelText: "Quantity"),
           ),
-
           TextField(
             controller: description,
             decoration: const InputDecoration(labelText: "Description"),
           ),
-
           TextField(
             controller: address,
             decoration: const InputDecoration(labelText: "Pickup Address"),
           ),
-
           const SizedBox(height: 20),
-
           ElevatedButton(
             onPressed: loading ? null : submit,
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),

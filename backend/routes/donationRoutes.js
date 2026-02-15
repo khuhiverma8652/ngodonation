@@ -50,9 +50,10 @@ router.get(
   authorize('ngo'),
   async (req, res) => {
     try {
-      const donations = await Donation.find({ ngo: req.user._id })
-        .populate("donor", "name email")
-        .populate("campaign", "title");
+      const DonationEnhanced = require('../models/DonationEnhanced');
+      const donations = await DonationEnhanced.find({ ngoId: req.user._id })
+        .populate("donorId", "name email")
+        .populate("campaignId", "title category");
 
       res.json({
         success: true,
@@ -67,6 +68,22 @@ router.get(
       });
     }
   }
+);
+
+// THANK DONOR
+// router.post(
+//   '/:id/thank',
+//   protect,
+//   authorize('ngo'),
+//   donationController.thankDonor
+// );
+
+// VERIFY IN-KIND DONATION
+router.put(
+  '/:id/verify',
+  protect,
+  authorize('ngo'),
+  donationController.verifyInKindDonation
 );
 
 router.get(

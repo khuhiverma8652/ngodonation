@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Campaign = require('../models/Campaign');
 const Donation = require('../models/DonationEnhanced');
 const NGO = require('../models/NGO');
+const notificationController = require('./notificationController');
 
 
 // @desc    Get admin dashboard stats
@@ -62,13 +63,19 @@ exports.getStats = async (req, res) => {
 // @access  Private (Admin only)
 exports.getAllUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 20, role } = req.query;
+    const { page = 1, limit = 50, role, search } = req.query;
 
     const query = {};
-    if (role) query.role = role;
+    if (role && role !== 'all') query.role = role;
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ];
+    }
 
     const users = await User.find(query)
-      .select('-password')
+      .select('-password -otp')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
@@ -77,9 +84,10 @@ exports.getAllUsers = async (req, res) => {
 
     res.json({
       success: true,
-      data: users,
+      users: users,
       totalPages: Math.ceil(count / limit),
-      currentPage: page
+      currentPage: page,
+      totalCount: count
     });
   } catch (error) {
     res.status(500).json({
@@ -100,7 +108,7 @@ exports.updateUserStatus = async (req, res) => {
       req.params.id,
       { isActive },
       { new: true }
-    );
+    ).select('-password -otp');
 
     if (!user) {
       return res.status(404).json({
@@ -113,6 +121,82 @@ exports.updateUserStatus = async (req, res) => {
       success: true,
       message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
       data: user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Update user details
+// @route   PUT /api/admin/users/:id
+// @access  Private (Admin only)
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, email, phone, role, ngoName, ngoAddress } = req.body;
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (phone) updateData.phone = phone;
+    if (role) updateData.role = role;
+    if (ngoName !== undefined) updateData.ngoName = ngoName;
+    if (ngoAddress !== undefined) updateData.ngoAddress = ngoAddress;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password -otp');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      data: user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Delete user
+// @route   DELETE /api/admin/users/:id
+// @access  Private (Admin only)
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete an admin user'
+      });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
     });
   } catch (error) {
     res.status(500).json({
@@ -163,7 +247,7 @@ exports.verifyNGO = async (req, res) => {
 exports.getPendingCampaigns = async (req, res) => {
   try {
     const campaigns = await Campaign.find({ status: "pending" })
-      .populate("ngoId", "name email phone ngoName ngoAddress")
+      .populate("ngoId", "name email phone ngoName ngoAddress address city state pincode")
       .lean();
     res.json({
       success: true,
@@ -201,6 +285,18 @@ exports.updateCampaignStatus = async (req, res) => {
     if (status === 'approved') {
       campaign.approvedBy = req.user._id;
       campaign.approvedAt = new Date();
+
+      // Notify all donors about the new campaign
+      const donors = await User.find({ role: 'donor' }).select('_id');
+      for (const donor of donors) {
+        await notificationController.createNotificationHelper(
+          donor._id,
+          'campaign',
+          'New Campaign Alert!',
+          `A new campaign "${campaign.title}" is now live. Support the cause!`,
+          campaign._id
+        );
+      }
     }
 
     await campaign.save();
@@ -286,12 +382,12 @@ exports.getAnalytics = async (req, res) => {
 exports.getCampaignDetails = async (req, res) => {
   try {
     const campaign = await Campaign.findById(req.params.id)
-      .populate('ngoId', 'name email location')
+      .populate('ngoId', 'name email phone address city state pincode location')
       .populate({
         path: 'donations',
         populate: {
           path: 'donorId',
-          select: 'name email location'
+          select: 'name email phone address location'
         }
       });
 
@@ -320,8 +416,9 @@ exports.getCampaignDetails = async (req, res) => {
 exports.getAllDonations = async (req, res) => {
   try {
     const donations = await Donation.find({ paymentStatus: 'success' })
-      .populate('donorId', 'name email location')
+      .populate('donorId', 'name email phone address location')
       .populate('campaignId', 'title category')
+      .populate('ngoId', 'name email phone')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -347,6 +444,18 @@ exports.approveCampaign = async (req, res) => {
 
     campaign.status = "approved";
     await campaign.save();
+
+    // Notify all donors about the new campaign
+    const donors = await User.find({ role: 'donor' }).select('_id');
+    for (const donor of donors) {
+      await notificationController.createNotificationHelper(
+        donor._id,
+        'campaign',
+        'New Campaign Alert!',
+        `A new campaign "${campaign.title}" is now live. Support the cause!`,
+        campaign._id
+      );
+    }
 
     res.json({ success: true, message: "Campaign approved" });
   } catch (error) {
